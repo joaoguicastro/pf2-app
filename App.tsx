@@ -10,10 +10,11 @@ export type ScreenName = 'create-account' | 'login' | 'home';
 export default function App() {
   const [screen, setScreen] = useState<ScreenName>('login');
 
+// lembrar de colocar o onLogin no create account screen, para que quando criar a conta, ele vá para a home
+
   return (
     <>
       <StatusBar style="dark" />
-
       {screen === 'login' && (
         <LoginScreen
           onCreateAccount={() => setScreen('create-account')}
