@@ -1,5 +1,7 @@
 import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+// LEMBRAR DE ATUALIZAR CSS 
+
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
 import { colors } from '../theme/colors';
@@ -94,7 +96,7 @@ const styles = StyleSheet.create({
   },
   warning: {
     alignItems: 'flex-start',
-    backgroundColor: colors.dangerLight,
+    backgroundColor: colors.dangerLight, 
     borderColor: '#F5CDD0',
     borderRadius: 8,
     borderWidth: 1,
@@ -106,5 +108,5 @@ const styles = StyleSheet.create({
   warningCopy: { flex: 1 },
   warningMark: { color: colors.danger, fontSize: 20, fontWeight: '900' },
   warningText: { color: '#724A4D', fontSize: 12, lineHeight: 18, marginTop: 3 },
-  warningTitle: { color: '#7D242A', fontSize: 14, fontWeight: '900' },
+  warningTitle: { color: '#7D242A', fontSize: 14, fontWeight: '900' }, 
 });
