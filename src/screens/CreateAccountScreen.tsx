@@ -5,31 +5,87 @@ import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
 import { AuthLink } from '../components/AuthLink';
 import { AuthTextInput } from '../components/AuthTextInput';
+import { getApiErrorMessage } from '../services/apiClient';
 import { colors } from '../theme/colors';
+import { CreatePatientRequest } from '../types/api';
+import { formatCpf } from '../utils/cpf';
 
 type CreateAccountScreenProps = {
   onBack: () => void;
-  onCreateAccount: () => void;
+  onCreateAccount: (payload: CreatePatientRequest) => Promise<void>;
   onLogin: () => void;
 };
 
+function formatBirthDate(value: string): string {
+  return value
+    .replace(/\D/g, '')
+    .slice(0, 8)
+    .replace(/(\d{2})(\d)/, '$1/$2')
+    .replace(/(\d{2})(\d)/, '$1/$2');
+}
+
+function toIsoDate(value: string): string | null {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  if (
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() !== Number(month) - 1 ||
+    date.getDate() !== Number(day)
+  ) {
+    return null;
+  }
+  return `${year}-${month}-${day}`;
+}
+
 export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: CreateAccountScreenProps) {
   const [acceptedTerms, setAcceptedTerms] = useState(true);
-  const [fullName, setFullName] = useState('Maria da Silva');
-  const [age, setAge] = useState('34');
-  const [gender, setGender] = useState('Feminino');
-  const [email, setEmail] = useState('maria@exemplo.com');
-  const [password, setPassword] = useState('12345678');
-  const [confirmPassword, setConfirmPassword] = useState('12345678');
+  const [fullName, setFullName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [gender, setGender] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit =
     acceptedTerms &&
     fullName.trim().length > 0 &&
-    age.trim().length > 0 &&
+    birthDate.trim().length === 10 &&
     gender.trim().length > 0 &&
+    cpf.length === 14 &&
     email.trim().length > 0 &&
     password.length >= 8 &&
     password === confirmPassword;
+
+  async function handleCreateAccount() {
+    if (!canSubmit || isSubmitting) return;
+    const dataNascimento = toIsoDate(birthDate);
+    if (!dataNascimento) {
+      setError('Informe uma data de nascimento válida no formato DD/MM/AAAA.');
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onCreateAccount({
+        cpf,
+        dataNascimento,
+        email: email.trim(),
+        nome: fullName.trim(),
+        senha: password,
+        sexo: gender.trim(),
+      });
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -38,8 +94,7 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>Med+Facil</Text>
         <Text style={styles.description}>
-          Criar uma conta é opcional e serve para guardar o histórico das suas avaliações e agilizar
-          seu atendimento.
+          Crie seu cadastro para enviar as respostas da triagem e receber a orientação inicial.
         </Text>
 
         <AuthTextInput label="Nome completo" onChangeText={setFullName} value={fullName} />
@@ -48,15 +103,25 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
           <View style={styles.rowItem}>
             <AuthTextInput
               keyboardType="number-pad"
-              label="Idade"
-              onChangeText={setAge}
-              value={age}
+              label="Nascimento"
+              maxLength={10}
+              onChangeText={(value) => setBirthDate(formatBirthDate(value))}
+              placeholder="DD/MM/AAAA"
+              value={birthDate}
             />
           </View>
           <View style={styles.rowItem}>
             <AuthTextInput label="Sexo" onChangeText={setGender} value={gender} />
           </View>
         </View>
+
+        <AuthTextInput
+          keyboardType="number-pad"
+          label="CPF"
+          onChangeText={(value) => setCpf(formatCpf(value))}
+          placeholder="000.000.000-00"
+          value={cpf}
+        />
 
         <AuthTextInput
           autoCapitalize="none"
@@ -81,6 +146,8 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
           value={confirmPassword}
         />
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
         <Pressable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: acceptedTerms }}
@@ -98,7 +165,11 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
         </Pressable>
 
         <View style={styles.footer}>
-          <AuthButton label="Criar conta" onPress={canSubmit ? onCreateAccount : () => undefined} />
+          <AuthButton
+            disabled={!canSubmit || isSubmitting}
+            label={isSubmitting ? 'Criando conta...' : 'Criar conta'}
+            onPress={handleCreateAccount}
+          />
           <AuthLink label="Já tenho conta — Entrar" onPress={onLogin} />
         </View>
       </ScrollView>
@@ -142,6 +213,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 18,
+  },
+  error: {
+    backgroundColor: colors.dangerLight,
+    borderRadius: 8,
+    color: colors.danger,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+    padding: 12,
   },
   footer: {
     gap: 16,

@@ -4,18 +4,35 @@ import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { AuthButton } from '../components/AuthButton';
 import { AuthLink } from '../components/AuthLink';
 import { AuthTextInput } from '../components/AuthTextInput';
+import { getApiErrorMessage } from '../services/apiClient';
 import { colors } from '../theme/colors';
+import { LoginRequest } from '../types/api';
 
 type LoginScreenProps = {
   onCreateAccount: () => void;
-  onLogin: () => void;
+  onLogin: (payload: LoginRequest) => Promise<void>;
 };
 
 export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
-  const [email, setEmail] = useState('maria@exemplo.com');
-  const [password, setPassword] = useState('12345678');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = email.trim().length > 0 && password.length > 0;
+
+  async function handleLogin() {
+    if (!canSubmit || isSubmitting) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onLogin({ email: email.trim(), senha: password });
+    } catch (requestError) {
+      setError(getApiErrorMessage(requestError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -24,9 +41,9 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
         <View>
           <Text style={styles.brand}>Med+Facil</Text>
           <Text style={styles.heading}>Entrar na sua conta</Text>
-          {/* <Text style={styles.description}>
-            O login é opcional. Ele serve para guardar o histórico das suas avaliações.
-          </Text> */}
+          <Text style={styles.description}>
+            A entrada é demonstrativa por enquanto. Para enviar uma triagem, crie um cadastro.
+          </Text>
 
           <AuthTextInput
             autoCapitalize="none"
@@ -43,11 +60,16 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
             value={password}
           />
 
-          <AuthLink label="Esqueci minha senha" onPress={() => undefined} />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
         </View>
 
         <View style={styles.footer}>
-          <AuthButton label="Entrar" onPress={canSubmit ? onLogin : () => undefined} />
+          <AuthButton
+            disabled={!canSubmit || isSubmitting}
+            label={isSubmitting ? 'Entrando...' : 'Entrar'}
+            onPress={handleLogin}
+          />
           <AuthLink label="Não tenho conta — Criar agora" onPress={onCreateAccount} />
         </View>
       </View>
@@ -71,6 +93,15 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: 16,
+  },
+  error: {
+    backgroundColor: colors.dangerLight,
+    borderRadius: 8,
+    color: colors.danger,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+    padding: 12,
   },
   brand: {
     color: colors.primaryDark,
