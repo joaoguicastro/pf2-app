@@ -1,3 +1,6 @@
+import { HospitalSelectionScreen } from './src/screens/HospitalSelectionScreen';
+import { CheckInScreen } from './src/screens/CheckInScreen';
+import { CheckIn, Hospital } from './src/types/api';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 
@@ -8,7 +11,7 @@ import { QuestionnaireScreen } from './src/screens/QuestionnaireScreen';
 import { SymptomSelectionScreen } from './src/screens/SymptomSelectionScreen';
 import { TriageIntroScreen } from './src/screens/TriageIntroScreen';
 import { TriageResultScreen } from './src/screens/TriageResultScreen';
-import { createCall, createPatient } from './src/services/medMaisFacilApi';
+import { createCall, createPatient, selectHospital } from './src/services/medMaisFacilApi';
 import { CreatePatientRequest, LoginRequest, Patient } from './src/types/api';
 import { SymptomOption, TriageResult, TriageSubmission } from './src/types/triage';
 
@@ -19,9 +22,12 @@ export type ScreenName =
   | 'triage-intro'
   | 'symptom-selection'
   | 'questionnaire'
-  | 'triage-result';
+  | 'triage-result'
+  | 'hospital-selection'
+  | 'check-in';
 
 export default function App() {
+  const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
   const [screen, setScreen] = useState<ScreenName>('login');
   const [patient, setPatient] = useState<Patient | null>(null);
   const [selectedSymptom, setSelectedSymptom] = useState<SymptomOption | null>(null);
@@ -36,6 +42,7 @@ export default function App() {
       setScreen('create-account');
       return;
     }
+    setCheckIn(null);
     setSelectedSymptom(null);
     setTriageResult(null);
     setScreen('triage-intro');
@@ -60,6 +67,7 @@ export default function App() {
   function handleLogout() {
     setPatient(null);
     setLastTriage(null);
+    setCheckIn(null);
     setSelectedSymptom(null);
     setTriageResult(null);
     setScreen('login');
@@ -73,6 +81,13 @@ export default function App() {
     setTriageResult(result);
     setLastTriage({ result, symptom: selectedSymptom });
     setScreen('triage-result');
+  }
+
+  async function handleHospitalSelection(hospital: Hospital) {
+    if (typeof patient?.id !== 'number' || !triageResult) throw new Error('Atendimento não encontrado.');
+    const result = await selectHospital(patient.id, triageResult.id, hospital.id);
+    setCheckIn(result);
+    setScreen('check-in');
   }
 
   return (
@@ -96,6 +111,12 @@ export default function App() {
       {screen === 'home' && (
         <HomeScreen
           lastTriage={lastTriage}
+          onResumeTriage={() => {
+            if (!lastTriage) return;
+            setSelectedSymptom(lastTriage.symptom);
+            setTriageResult(lastTriage.result);
+            setScreen(checkIn?.chamadoId === lastTriage.result.id ? 'check-in' : 'triage-result');
+          }}
           onCreateAccount={() => setScreen('create-account')}
           onLogout={handleLogout}
           onStartTriage={startTriage}
@@ -124,8 +145,15 @@ export default function App() {
         />
       )}
 
+      {screen === 'hospital-selection' && selectedSymptom && triageResult && (
+        <HospitalSelectionScreen symptomId={selectedSymptom.id} onBack={() => setScreen('triage-result')} onSelect={handleHospitalSelection} />
+      )}
+      {screen === 'check-in' && checkIn && (
+        <CheckInScreen checkIn={checkIn} onFinish={() => setScreen('home')} onChangeHospital={() => setScreen('hospital-selection')} />
+      )}
       {screen === 'triage-result' && selectedSymptom && triageResult && (
         <TriageResultScreen
+          onContinue={() => setScreen('hospital-selection')}
           onFinish={() => setScreen('home')}
           onRestart={startTriage}
           result={triageResult}

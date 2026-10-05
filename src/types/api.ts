@@ -54,3 +54,6 @@ export type CallApiResponse = {
     sinaisAlerta: string[];
   } | null;
 };
+
+export type Hospital = { id: number; nome: string; endereco: string; distanciaKm: number | null };
+export type CheckIn = { chamadoId: number; hospital: Hospital; qrCode: string };

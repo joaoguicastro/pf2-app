@@ -9,11 +9,12 @@ import { TriageResult } from '../types/triage';
 type TriageResultScreenProps = {
   result: TriageResult;
   symptomLabel: string;
+  onContinue: () => void;
   onFinish: () => void;
   onRestart: () => void;
 };
 
-export function TriageResultScreen({ result, symptomLabel, onFinish, onRestart }: TriageResultScreenProps) {
+export function TriageResultScreen({ result, symptomLabel, onFinish, onRestart, onContinue }: TriageResultScreenProps) {
   const details = priorityDetails[result.priority];
 
   return (
@@ -68,7 +69,7 @@ export function TriageResultScreen({ result, symptomLabel, onFinish, onRestart }
         </Text>
 
         <View style={styles.footer}>
-          <AuthButton label="Concluir" onPress={onFinish} />
+          <AuthButton label="Escolher hospital" onPress={onContinue} />
           <Pressable accessibilityRole="button" onPress={onRestart} style={styles.restartButton}>
             <Text style={styles.restartText}>Refazer triagem</Text>
           </Pressable>

@@ -25,6 +25,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permita que o Med+Facil use sua localização para encontrar hospitais próximos."
+        }
+      ]
+    ]
   }
 }

@@ -8,6 +8,7 @@ import { SymptomOption, TriageResult } from '../types/triage';
 
 type HomeScreenProps = {
   lastTriage: { result: TriageResult; symptom: SymptomOption } | null;
+  onResumeTriage: () => void;
   onCreateAccount: () => void;
   onLogout: () => void;
   onStartTriage: () => void;
@@ -23,7 +24,7 @@ function getInitials(name: string): string {
     .join('');
 }
 
-export function HomeScreen({ lastTriage, onCreateAccount, onLogout, onStartTriage, patient }: HomeScreenProps) {
+export function HomeScreen({ lastTriage, onCreateAccount, onLogout, onStartTriage, patient, onResumeTriage }: HomeScreenProps) {
   const lastPriority = lastTriage ? priorityDetails[lastTriage.result.priority] : null;
   const canSubmitTriage = typeof patient?.id === 'number';
 
@@ -104,14 +105,14 @@ export function HomeScreen({ lastTriage, onCreateAccount, onLogout, onStartTriag
           <Text style={styles.historyLink}>Ver histórico</Text>
         </View>
         {lastTriage && lastPriority ? (
-          <View style={styles.recentTriage}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Abrir atendimento e check-in" onPress={onResumeTriage} style={styles.recentTriage}>
             <View style={[styles.recentDot, { backgroundColor: lastPriority.color }]} />
             <View style={styles.emptyCopy}>
               <Text style={styles.emptyTitle}>{lastTriage.symptom.label}</Text>
               <Text style={styles.emptyText}>Classificação: {lastPriority.label}</Text>
             </View>
-            <Text style={styles.todayText}>Hoje</Text>
-          </View>
+            <Text style={styles.todayText}>Abrir →</Text>
+          </Pressable>
         ) : (
           <View style={styles.emptyHistory}>
             <Text style={styles.emptyIcon}>+</Text>

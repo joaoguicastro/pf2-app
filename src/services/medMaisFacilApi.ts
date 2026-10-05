@@ -78,3 +78,18 @@ export async function createCall(patientId: number, payload: CreateCallRequest):
     status: response.statusChamado,
   };
 }
+
+export function listHospitals(symptomId: SymptomId, coordinates?: { latitude: number; longitude: number }) {
+  const query = new URLSearchParams({ sintoma: symptomId });
+  if (coordinates) {
+    query.set('latitude', String(coordinates.latitude));
+    query.set('longitude', String(coordinates.longitude));
+  }
+  return apiRequest<import('../types/api').Hospital[]>(`/v1/unidades-saude?${query}`);
+}
+
+export function selectHospital(patientId: number, callId: number, hospitalId: number) {
+  return apiRequest<import('../types/api').CheckIn>(`/v1/paciente/${patientId}/chamado/${callId}/encaminhamento`, {
+    method: 'PUT', body: JSON.stringify({ unidadeSaudeId: hospitalId }),
+  });
+}
