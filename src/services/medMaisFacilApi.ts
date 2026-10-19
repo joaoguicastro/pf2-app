@@ -1,9 +1,13 @@
+import { formatCpf } from '../utils/cpf';
 import { symptomPresentation } from '../data/triage';
 import {
   CallApiResponse,
   CreateCallRequest,
   CreatePatientRequest,
   Patient,
+  LoginRequest,
+  HistoryCall,
+  HistoryCallDetail,
   QuestionnaireApiResponse,
   SymptomApiResponse,
 } from '../types/api';
@@ -55,7 +59,11 @@ export async function createCall(patientId: number, payload: CreateCallRequest):
     ]),
   );
   const response = await apiRequest<CallApiResponse>(`/v1/paciente/${patientId}/chamado`, {
-    body: JSON.stringify({ ...payload, respostasFluxograma }),
+    body: JSON.stringify({
+      ...payload,
+      respostasFluxograma,
+      confirmarNovoAtendimento: payload.confirmarNovoAtendimento ?? false,
+    }),
     method: 'POST',
   });
 
@@ -92,4 +100,65 @@ export function selectHospital(patientId: number, callId: number, hospitalId: nu
   return apiRequest<import('../types/api').CheckIn>(`/v1/paciente/${patientId}/chamado/${callId}/encaminhamento`, {
     method: 'PUT', body: JSON.stringify({ unidadeSaudeId: hospitalId }),
   });
+}
+
+export async function identifyPatient(cpf: string): Promise<Patient> {
+  if (cpf.replace(/\D/g, '').length !== 11) {
+    throw new ApiError('Informe um CPF com 11 dígitos.');
+  }
+  try {
+    const patient = await apiRequest<Patient>(`/v1/paciente/${encodeURIComponent(formatCpf(cpf))}`);
+    if (!patient || !Number.isInteger(patient.id) || (patient.id ?? 0) <= 0 ||
+        typeof patient.nome !== 'string' || typeof patient.email !== 'string') {
+      throw new ApiError('Não foi possível identificar seu cadastro. Verifique se a API está atualizada.');
+    }
+    return patient;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      throw new ApiError('Cadastro não encontrado. Confira o CPF ou crie uma conta.', 404);
+    }
+    throw error;
+  }
+}
+
+function decodeTokenPayload(token: string): { sub?: string; nome?: string; exp?: number } {
+  try {
+    const encoded = token.split('.')[1];
+    if (!encoded) throw new Error('Token inválido.');
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = globalThis.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='));
+    const json = decodeURIComponent(Array.from(binary, char => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''));
+    return JSON.parse(json);
+  } catch {
+    throw new ApiError('O login retornou um token inválido. Tente novamente.');
+  }
+}
+
+export function patientFromToken(token: string, email = ''): Patient {
+  const claims = decodeTokenPayload(token);
+  const id = Number(claims.sub);
+  if (!Number.isInteger(id) || id <= 0 || (claims.exp && claims.exp * 1000 <= Date.now())) {
+    throw new ApiError('O token de acesso expirou ou não contém um paciente válido.', 401);
+  }
+  return {
+    id,
+    nome: typeof claims.nome === 'string' ? claims.nome : email.split('@')[0] || 'Paciente',
+    email,
+  };
+}
+
+export async function loginPatient(payload: LoginRequest): Promise<{ token: string; patient: Patient }> {
+  const response = await apiRequest<{ token: string }>('/v1/auth/login', {
+    method: 'POST', body: JSON.stringify(payload),
+  });
+  if (typeof response?.token !== 'string') throw new ApiError('A API não retornou o token de acesso.');
+  return { token: response.token, patient: patientFromToken(response.token, payload.email) };
+}
+
+export function listPatientHistory(): Promise<HistoryCall[]> {
+  return apiRequest<HistoryCall[]>('/v1/paciente/me/historico');
+}
+
+export function getPatientHistoryDetail(patientId: number, callId: number): Promise<HistoryCallDetail> {
+  return apiRequest<HistoryCallDetail>(`/v1/paciente/${patientId}/historico/${callId}`);
 }

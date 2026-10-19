@@ -39,7 +39,6 @@ os dados atuais do chamado e validar a unidade antes de continuar seu fluxo.
 5. Troque a unidade, confira o novo código e reabra pelo atendimento recente.
 6. Desligue a API e confira erro e nova tentativa.
 
-O login é demonstrativo e não consulta credenciais no banco. Para enviar uma
-triagem, use o cadastro, que retorna o ID do paciente.
-A sessão e o QR não são preservados ao encerrar o aplicativo.
-GPS e diálogo nativo ainda precisam de validação em aparelho.
+O app entra pelo endpoint `/v1/auth/login`, envia e-mail e senha e guarda o JWT
+no armazenamento seguro do dispositivo. As chamadas seguintes incluem o token.
+O cadastro inicia uma sessão automaticamente após criar o paciente.

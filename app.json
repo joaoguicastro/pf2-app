@@ -32,7 +32,8 @@
         {
           "locationWhenInUsePermission": "Permita que o Med+Facil use sua localização para encontrar hospitais próximos."
         }
-      ]
+      ],
+      "expo-secure-store"
     ]
   }
 }

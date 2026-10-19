@@ -42,21 +42,24 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
           <Text style={styles.brand}>Med+Facil</Text>
           <Text style={styles.heading}>Entrar na sua conta</Text>
           <Text style={styles.description}>
-            A entrada é demonstrativa por enquanto. Para enviar uma triagem, crie um cadastro.
+            Entre com o e-mail e a senha usados no cadastro.
           </Text>
 
           <AuthTextInput
             autoCapitalize="none"
+            autoComplete="email"
             keyboardType="email-address"
             label="E-mail"
-            onChangeText={setEmail}
+            editable={!isSubmitting}
+            onChangeText={(value) => { setEmail(value); setError(null); }}
             value={email}
           />
-
           <AuthTextInput
+            autoComplete="password"
             label="Senha"
-            onChangeText={setPassword}
             secureTextEntry
+            editable={!isSubmitting}
+            onChangeText={(value) => { setPassword(value); setError(null); }}
             value={password}
           />
 

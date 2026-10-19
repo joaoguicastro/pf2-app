@@ -16,10 +16,7 @@ export type CreatePatientRequest = {
   senha: string;
 };
 
-export type LoginRequest = {
-  email: string;
-  senha: string;
-};
+export type LoginRequest = { email: string; senha: string };
 
 export type SymptomApiResponse = {
   nome: SymptomId;
@@ -37,6 +34,7 @@ export type QuestionnaireApiResponse = {
 };
 
 export type CreateCallRequest = {
+  confirmarNovoAtendimento?: boolean;
   sintomaPrincipal: SymptomId;
   discriminadoresGerais: TriageAnswers;
   respostasFluxograma: TriageAnswers;
@@ -55,5 +53,33 @@ export type CallApiResponse = {
   } | null;
 };
 
-export type Hospital = { id: number; nome: string; endereco: string; distanciaKm: number | null };
+export type Hospital = {
+  id: number;
+  nome: string;
+  endereco: string;
+  distanciaKm: number | null;
+  ocupacaoAtual?: number | null;
+  limiteLotacao?: number | null;
+  ocupacaoPercentual?: number | null;
+  lotada?: boolean | null;
+};
 export type CheckIn = { chamadoId: number; hospital: Hospital; qrCode: string };
+
+export type HistoryCall = {
+  chamadoId: number;
+  sintomaPrincipal: SymptomId;
+  dataCriacao: string;
+  prioridade: Priority;
+  status: string;
+};
+
+export type HistoryAnswer = { pergunta: string; resposta: boolean | null };
+export type HistoryCallDetail = {
+  chamadoId: number;
+  sintomaPrincipal: SymptomId;
+  dataCriacao: string;
+  prioridadeChamado: Priority;
+  statusChamado: string;
+  discriminadoresGerais: HistoryAnswer[];
+  respostasFluxograma: HistoryAnswer[];
+};

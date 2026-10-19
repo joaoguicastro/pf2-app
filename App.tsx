@@ -2,23 +2,26 @@ import { HospitalSelectionScreen } from './src/screens/HospitalSelectionScreen';
 import { CheckInScreen } from './src/screens/CheckInScreen';
 import { CheckIn, Hospital } from './src/types/api';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { CreateAccountScreen } from './src/screens/CreateAccountScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { HistoryScreen } from './src/screens/HistoryScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { QuestionnaireScreen } from './src/screens/QuestionnaireScreen';
 import { SymptomSelectionScreen } from './src/screens/SymptomSelectionScreen';
 import { TriageIntroScreen } from './src/screens/TriageIntroScreen';
 import { TriageResultScreen } from './src/screens/TriageResultScreen';
-import { createCall, createPatient, selectHospital } from './src/services/medMaisFacilApi';
+import { createCall, createPatient, loginPatient, patientFromToken, selectHospital } from './src/services/medMaisFacilApi';
 import { CreatePatientRequest, LoginRequest, Patient } from './src/types/api';
+import { clearAuthToken, loadAuthToken, saveAuthToken, setAuthToken } from './src/services/apiClient';
 import { SymptomOption, TriageResult, TriageSubmission } from './src/types/triage';
 
 export type ScreenName =
   | 'create-account'
   | 'login'
   | 'home'
+  | 'history'
   | 'triage-intro'
   | 'symptom-selection'
   | 'questionnaire'
@@ -37,6 +40,22 @@ export default function App() {
     symptom: SymptomOption;
   } | null>(null);
 
+  useEffect(() => {
+    let active = true;
+    void loadAuthToken().then(async (token) => {
+      if (!active || !token) return;
+      try {
+        const restoredPatient = patientFromToken(token);
+        setAuthToken(token);
+        setPatient(restoredPatient);
+        setScreen('home');
+      } catch {
+        await clearAuthToken();
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   function startTriage() {
     if (typeof patient?.id !== 'number') {
       setScreen('create-account');
@@ -54,17 +73,22 @@ export default function App() {
   }
 
   async function handleLogin(payload: LoginRequest) {
-    setPatient({ email: payload.email, nome: payload.email.split('@')[0] || 'Paciente' });
+    const session = await loginPatient(payload);
+    await saveAuthToken(session.token);
+    setPatient(session.patient);
     setScreen('home');
   }
 
   async function handleCreateAccount(payload: CreatePatientRequest) {
     const createdPatient = await createPatient(payload);
-    setPatient(createdPatient);
+    const session = await loginPatient({ email: createdPatient.email, senha: payload.senha });
+    await saveAuthToken(session.token);
+    setPatient(session.patient);
     setScreen('home');
   }
 
   function handleLogout() {
+    void clearAuthToken();
     setPatient(null);
     setLastTriage(null);
     setCheckIn(null);
@@ -118,10 +142,15 @@ export default function App() {
             setScreen(checkIn?.chamadoId === lastTriage.result.id ? 'check-in' : 'triage-result');
           }}
           onCreateAccount={() => setScreen('create-account')}
+          onViewHistory={() => setScreen('history')}
           onLogout={handleLogout}
           onStartTriage={startTriage}
           patient={patient}
         />
+      )}
+
+      {screen === 'history' && patient && (
+        <HistoryScreen patient={patient} onBack={() => setScreen('home')} />
       )}
 
       {screen === 'triage-intro' && (

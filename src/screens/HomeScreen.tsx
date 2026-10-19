@@ -9,6 +9,7 @@ import { SymptomOption, TriageResult } from '../types/triage';
 type HomeScreenProps = {
   lastTriage: { result: TriageResult; symptom: SymptomOption } | null;
   onResumeTriage: () => void;
+  onViewHistory: () => void;
   onCreateAccount: () => void;
   onLogout: () => void;
   onStartTriage: () => void;
@@ -24,7 +25,7 @@ function getInitials(name: string): string {
     .join('');
 }
 
-export function HomeScreen({ lastTriage, onCreateAccount, onLogout, onStartTriage, patient, onResumeTriage }: HomeScreenProps) {
+export function HomeScreen({ lastTriage, onCreateAccount, onLogout, onStartTriage, patient, onResumeTriage, onViewHistory }: HomeScreenProps) {
   const lastPriority = lastTriage ? priorityDetails[lastTriage.result.priority] : null;
   const canSubmitTriage = typeof patient?.id === 'number';
 
@@ -102,7 +103,7 @@ export function HomeScreen({ lastTriage, onCreateAccount, onLogout, onStartTriag
 
         <View style={styles.historyHeader}>
           <Text style={styles.sectionTitle}>Avaliações recentes</Text>
-          <Text style={styles.historyLink}>Ver histórico</Text>
+          <Pressable accessibilityRole="button" onPress={onViewHistory}><Text style={styles.historyLink}>Ver histórico</Text></Pressable>
         </View>
         {lastTriage && lastPriority ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Abrir atendimento e check-in" onPress={onResumeTriage} style={styles.recentTriage}>

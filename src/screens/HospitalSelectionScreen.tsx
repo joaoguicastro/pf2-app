@@ -11,6 +11,22 @@ import { colors } from '../theme/colors';
 
 type Props = { symptomId: SymptomId; onBack: () => void; onSelect: (hospital: Hospital) => Promise<void> };
 
+function occupancyLabel(hospital: Hospital) {
+  const percentage = hospital.ocupacaoPercentual;
+  if (percentage == null) return 'Lotação não informada';
+  if (hospital.lotada || percentage >= 100) return `Lotado · ${percentage}% da capacidade`;
+  if (percentage >= 70) return `Ocupação alta · ${percentage}% da capacidade`;
+  if (percentage >= 30) return `Ocupação moderada · ${percentage}% da capacidade`;
+  return `Ocupação baixa · ${percentage}% da capacidade`;
+}
+
+function occupancyStyle(hospital: Hospital) {
+  if (hospital.ocupacaoPercentual == null) return styles.occupancyUnknown;
+  if (hospital.lotada || hospital.ocupacaoPercentual >= 100 || hospital.ocupacaoPercentual >= 70) return styles.occupancyHigh;
+  if (hospital.ocupacaoPercentual >= 30) return styles.occupancyModerate;
+  return styles.occupancyLow;
+}
+
 export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [selected, setSelected] = useState<Hospital | null>(null);
@@ -98,6 +114,7 @@ export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) 
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Hospitais perto de você</Text>
           <Text style={styles.subtitle}>{locationMessage}</Text>
+          <Text style={styles.occupancyHint}>A lotação considera a fila atual e a capacidade informada pela unidade.</Text>
           <AuthButton disabled={locating || saving || loading} label={locating ? 'Obtendo localização…' : 'Usar minha localização'} onPress={() => void locate()} />
           {blocked && Platform.OS !== 'web' && <Pressable accessibilityRole="button" onPress={() => { void Linking.openSettings().catch(() => setLocationMessage('Abra as configurações do aparelho para permitir a localização.')); }}><Text style={styles.link}>Abrir configurações</Text></Pressable>}
         </View>
@@ -106,6 +123,12 @@ export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) 
             <View style={styles.row}><Text style={styles.panelTitle}>{hospital.nome}</Text><Text style={styles.radio}>{selected?.id === hospital.id ? '●' : '○'}</Text></View>
             <Text style={styles.address}>{hospital.endereco}</Text>
             {hospital.distanciaKm != null && <Text style={styles.distance}>{hospital.distanciaKm < 1 ? `${Math.round(hospital.distanciaKm * 1000)} m` : `${hospital.distanciaKm.toFixed(1).replace('.', ',')} km`} de você</Text>}
+            <View accessibilityLabel={occupancyLabel(hospital)} style={[styles.occupancyBadge, occupancyStyle(hospital)]}>
+              <Text style={styles.occupancyText}>{occupancyLabel(hospital)}</Text>
+              {hospital.ocupacaoAtual != null && hospital.limiteLotacao != null && hospital.limiteLotacao > 0 && (
+                <Text style={styles.occupancyDetail}>{hospital.ocupacaoAtual} na fila · limite {hospital.limiteLotacao}</Text>
+              )}
+            </View>
           </Pressable>
         ))}
         {!!error && <View style={styles.panel}><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable accessibilityRole="button" disabled={saving || locating} onPress={() => void load()}><Text style={styles.link}>Atualizar lista</Text></Pressable></View>}
@@ -129,6 +152,14 @@ const styles = StyleSheet.create({
   radio: { color: colors.primary, fontSize: 24 },
   address: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   distance: { color: colors.primaryDark, fontWeight: '800', fontSize: 13 },
+  occupancyHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  occupancyBadge: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9, gap: 3 },
+  occupancyHigh: { backgroundColor: colors.dangerLight },
+  occupancyModerate: { backgroundColor: '#FFF5DF' },
+  occupancyLow: { backgroundColor: '#E8F6EF' },
+  occupancyUnknown: { backgroundColor: colors.infoLight },
+  occupancyText: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  occupancyDetail: { color: colors.muted, fontSize: 11 },
   link: { color: colors.primaryDark, textAlign: 'center', padding: 10, fontWeight: '700' },
   error: { color: colors.danger },
 });
