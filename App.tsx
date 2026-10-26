@@ -35,6 +35,7 @@ export default function App() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [selectedSymptom, setSelectedSymptom] = useState<SymptomOption | null>(null);
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
+  const [historyCallId, setHistoryCallId] = useState<number | null>(null);
   const [lastTriage, setLastTriage] = useState<{
     result: TriageResult;
     symptom: SymptomOption;
@@ -101,7 +102,7 @@ export default function App() {
     if (typeof patient?.id !== 'number' || !selectedSymptom) {
       throw new Error('É necessário criar um cadastro para enviar a triagem.');
     }
-    const result = await createCall(patient.id, submission);
+    const result = await createCall(submission);
     setTriageResult(result);
     setLastTriage({ result, symptom: selectedSymptom });
     setScreen('triage-result');
@@ -135,14 +136,16 @@ export default function App() {
       {screen === 'home' && (
         <HomeScreen
           lastTriage={lastTriage}
-          onResumeTriage={() => {
+          onOpenLastTriage={() => {
             if (!lastTriage) return;
-            setSelectedSymptom(lastTriage.symptom);
-            setTriageResult(lastTriage.result);
-            setScreen(checkIn?.chamadoId === lastTriage.result.id ? 'check-in' : 'triage-result');
+            setHistoryCallId(lastTriage.result.id);
+            setScreen('history');
           }}
           onCreateAccount={() => setScreen('create-account')}
-          onViewHistory={() => setScreen('history')}
+          onViewHistory={() => {
+            setHistoryCallId(null);
+            setScreen('history');
+          }}
           onLogout={handleLogout}
           onStartTriage={startTriage}
           patient={patient}
@@ -150,7 +153,7 @@ export default function App() {
       )}
 
       {screen === 'history' && patient && (
-        <HistoryScreen patient={patient} onBack={() => setScreen('home')} />
+        <HistoryScreen initialCallId={historyCallId} patient={patient} onBack={() => setScreen('home')} />
       )}
 
       {screen === 'triage-intro' && (

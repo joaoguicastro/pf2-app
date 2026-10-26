@@ -39,7 +39,7 @@ function AnswerGroup({ title, answers }: { title: string; answers: HistoryAnswer
   </View>;
 }
 
-export function HistoryScreen({ patient, onBack }: { patient: Patient; onBack: () => void }) {
+export function HistoryScreen({ patient, onBack, initialCallId }: { patient: Patient; onBack: () => void; initialCallId?: number | null }) {
   const [records, setRecords] = useState<HistoryCall[]>([]);
   const [selected, setSelected] = useState<HistoryCallDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +57,11 @@ export function HistoryScreen({ patient, onBack }: { patient: Patient; onBack: (
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [attempt]);
+
+  useEffect(() => {
+    if (typeof initialCallId === 'number') void openDetail(initialCallId);
+    // Abre o detalhe direto quando vem do card "Abrir" da tela inicial
+  }, [initialCallId]);
 
   async function openDetail(callId: number) {
     if (typeof patient.id !== 'number' || detailLoading) return;
