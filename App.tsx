@@ -35,7 +35,6 @@ export default function App() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [selectedSymptom, setSelectedSymptom] = useState<SymptomOption | null>(null);
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
-  const [historyCallId, setHistoryCallId] = useState<number | null>(null);
   const [lastTriage, setLastTriage] = useState<{
     result: TriageResult;
     symptom: SymptomOption;
@@ -98,11 +97,17 @@ export default function App() {
     setScreen('login');
   }
 
-  async function finishQuestionnaire(submission: TriageSubmission) {
+  async function finishQuestionnaire(
+    submission: TriageSubmission,
+    options?: { confirmarNovoAtendimento?: boolean },
+  ) {
     if (typeof patient?.id !== 'number' || !selectedSymptom) {
       throw new Error('É necessário criar um cadastro para enviar a triagem.');
     }
-    const result = await createCall(submission);
+    const result = await createCall(patient.id, {
+      ...submission,
+      confirmarNovoAtendimento: options?.confirmarNovoAtendimento ?? false,
+    });
     setTriageResult(result);
     setLastTriage({ result, symptom: selectedSymptom });
     setScreen('triage-result');
@@ -136,16 +141,14 @@ export default function App() {
       {screen === 'home' && (
         <HomeScreen
           lastTriage={lastTriage}
-          onOpenLastTriage={() => {
+          onResumeTriage={() => {
             if (!lastTriage) return;
-            setHistoryCallId(lastTriage.result.id);
-            setScreen('history');
+            setSelectedSymptom(lastTriage.symptom);
+            setTriageResult(lastTriage.result);
+            setScreen(checkIn?.chamadoId === lastTriage.result.id ? 'check-in' : 'triage-result');
           }}
           onCreateAccount={() => setScreen('create-account')}
-          onViewHistory={() => {
-            setHistoryCallId(null);
-            setScreen('history');
-          }}
+          onViewHistory={() => setScreen('history')}
           onLogout={handleLogout}
           onStartTriage={startTriage}
           patient={patient}
@@ -153,7 +156,7 @@ export default function App() {
       )}
 
       {screen === 'history' && patient && (
-        <HistoryScreen initialCallId={historyCallId} patient={patient} onBack={() => setScreen('home')} />
+        <HistoryScreen patient={patient} onBack={() => setScreen('home')} />
       )}
 
       {screen === 'triage-intro' && (

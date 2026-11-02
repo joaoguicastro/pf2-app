@@ -46,7 +46,10 @@ export async function getQuestionnaire(symptomId: SymptomId): Promise<TriageQues
   };
 }
 
-export async function createCall(payload: CreateCallRequest): Promise<TriageResult> {
+export async function createCall(
+  patientId: number,
+  payload: CreateCallRequest & { confirmarNovoAtendimento?: boolean },
+): Promise<TriageResult> {
   const classifierKeys: Record<string, string> = {
     IRRADIA_BRANCO_MANDIBULA: 'IRRADIA_BRACO_MANDIBULA',
     NAUSE_VOMITO_FORTE: 'NAUSEA_VOMITO_FORTE',
@@ -58,7 +61,7 @@ export async function createCall(payload: CreateCallRequest): Promise<TriageResu
       answer,
     ]),
   );
-  const response = await apiRequest<CallApiResponse>('/v1/paciente/me/chamado', {
+  const response = await apiRequest<CallApiResponse>(`/v1/chamado/me`, {
     body: JSON.stringify({
       ...payload,
       respostasFluxograma,
