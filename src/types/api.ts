@@ -1,4 +1,4 @@
-import { Priority, SymptomId, TriageAnswers } from './triage';
+import { NearestUnitApi, Priority, SymptomId, TriageAnswers } from './triage';
 
 export type Patient = {
   id?: number;
@@ -51,6 +51,7 @@ export type CallApiResponse = {
     cuidadosCasa: string[];
     sinaisAlerta: string[];
   } | null;
+  unidadeSaude?: NearestUnitApi | null;
 };
 
 export type Hospital = {
