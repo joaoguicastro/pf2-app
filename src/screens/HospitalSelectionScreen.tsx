@@ -1,8 +1,9 @@
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
+import { Skeleton, SkeletonCard, SkeletonGroup } from '../components/Skeleton';
 import { getApiErrorMessage } from '../services/apiClient';
 import { listHospitals } from '../services/medMaisFacilApi';
 import { Hospital } from '../types/api';
@@ -118,7 +119,16 @@ export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) 
           <AuthButton disabled={locating || saving || loading} label={locating ? 'Obtendo localização…' : 'Usar minha localização'} onPress={() => void locate()} />
           {blocked && Platform.OS !== 'web' && <Pressable accessibilityRole="button" onPress={() => { void Linking.openSettings().catch(() => setLocationMessage('Abra as configurações do aparelho para permitir a localização.')); }}><Text style={styles.link}>Abrir configurações</Text></Pressable>}
         </View>
-        {loading ? <ActivityIndicator accessibilityLabel="Carregando hospitais" color={colors.primary} /> : hospitals.length === 0 && !error ? <Text style={styles.subtitle}>Nenhuma unidade disponível para este sintoma.</Text> : hospitals.map(hospital => (
+        {loading ? <SkeletonGroup accessibilityLabel="Carregando hospitais" style={styles.skeletonList}>
+          {[0, 1, 2].map(item => (
+            <SkeletonCard key={item}>
+              <View style={styles.row}><Skeleton height={16} width="65%" /><Skeleton height={20} radius={10} width={20} /></View>
+              <Skeleton height={13} width="90%" />
+              <Skeleton height={13} width={90} />
+              <Skeleton height={38} radius={9} />
+            </SkeletonCard>
+          ))}
+        </SkeletonGroup> : hospitals.length === 0 && !error ? <Text style={styles.subtitle}>Nenhuma unidade disponível para este sintoma.</Text> : hospitals.map(hospital => (
           <Pressable key={hospital.id} accessibilityRole="radio" accessibilityState={{ checked: selected?.id === hospital.id, disabled: saving || locating }} disabled={saving || locating} onPress={() => setSelected(hospital)} style={[styles.hospital, selected?.id === hospital.id && styles.selected]}>
             <View style={styles.row}><Text style={styles.panelTitle}>{hospital.nome}</Text><Text style={styles.radio}>{selected?.id === hospital.id ? '●' : '○'}</Text></View>
             <Text style={styles.address}>{hospital.endereco}</Text>
@@ -160,6 +170,7 @@ const styles = StyleSheet.create({
   occupancyUnknown: { backgroundColor: colors.infoLight },
   occupancyText: { color: colors.text, fontSize: 13, fontWeight: '800' },
   occupancyDetail: { color: colors.muted, fontSize: 11 },
+  skeletonList: { gap: 16 },
   link: { color: colors.primaryDark, textAlign: 'center', padding: 10, fontWeight: '700' },
   error: { color: colors.danger },
 });

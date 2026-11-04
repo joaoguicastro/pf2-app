@@ -7,6 +7,7 @@ import { AuthTextInput } from '../components/AuthTextInput';
 import { getApiErrorMessage } from '../services/apiClient';
 import { colors } from '../theme/colors';
 import { LoginRequest } from '../types/api';
+import { validateEmail, validatePassword } from '../utils/validation';
 
 type LoginScreenProps = {
   onCreateAccount: () => void;
@@ -19,10 +20,16 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0;
+  const [touched, setTouched] = useState({ email: false, password: false });
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const emailError = validateEmail(email);
+  const passwordError = validatePassword(password);
 
   async function handleLogin() {
-    if (!canSubmit || isSubmitting) return;
+    if (isSubmitting) return;
+    setSubmitAttempted(true);
+    if (emailError || passwordError) return;
     setError(null);
     setIsSubmitting(true);
     try {
@@ -50,7 +57,10 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
             autoComplete="email"
             keyboardType="email-address"
             label="E-mail"
+            autoCorrect={false}
             editable={!isSubmitting}
+            error={submitAttempted || touched.email ? emailError : null}
+            onBlur={() => setTouched((current) => ({ ...current, email: true }))}
             onChangeText={(value) => { setEmail(value); setError(null); }}
             value={email}
           />
@@ -58,7 +68,10 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
             autoComplete="password"
             label="Senha"
             secureTextEntry
+            autoCapitalize="none"
             editable={!isSubmitting}
+            error={submitAttempted || touched.password ? passwordError : null}
+            onBlur={() => setTouched((current) => ({ ...current, password: true }))}
             onChangeText={(value) => { setPassword(value); setError(null); }}
             value={password}
           />
@@ -69,7 +82,7 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
 
         <View style={styles.footer}>
           <AuthButton
-            disabled={!canSubmit || isSubmitting}
+            disabled={isSubmitting}
             label={isSubmitting ? 'Entrando...' : 'Entrar'}
             onPress={handleLogin}
           />

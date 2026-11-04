@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
+import { Skeleton, SkeletonCard, SkeletonGroup } from '../components/Skeleton';
 import { getPatientHistoryDetail, listPatientHistory } from '../services/medMaisFacilApi';
 import { colors } from '../theme/colors';
 import { HistoryAnswer, HistoryCall, HistoryCallDetail, Patient } from '../types/api';
@@ -25,6 +26,43 @@ const statusLabels: Record<string, string> = {
 const formatDate = (value: string) => new Date(value).toLocaleString('pt-BR', {
   day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
+
+function HistoryListSkeleton() {
+  return <SkeletonGroup accessibilityLabel="Carregando histórico" style={styles.skeletonList}>
+    {[0, 1, 2].map(item => <SkeletonCard key={item} style={styles.skeletonCard}>
+      <View style={styles.recordTop}>
+        <View style={styles.recordCopy}>
+          <Skeleton height={16} width="50%" />
+          <Skeleton height={12} width="75%" />
+        </View>
+      </View>
+      <View style={styles.recordBottom}>
+        <Skeleton height={28} radius={20} width={120} />
+        <Skeleton height={12} width={80} />
+      </View>
+    </SkeletonCard>)}
+  </SkeletonGroup>;
+}
+
+function HistoryDetailSkeleton() {
+  return <SkeletonGroup accessibilityLabel="Carregando atendimento" style={styles.skeletonList}>
+    <Skeleton height={11} width={130} />
+    <Skeleton height={26} width="60%" />
+    <Skeleton height={12} width="70%" />
+    <SkeletonCard style={styles.skeletonCard}>
+      <Skeleton height={15} width="65%" />
+      <Skeleton height={28} radius={20} width={130} />
+      <Skeleton height={12} width="45%" />
+    </SkeletonCard>
+    {[0, 1].map(item => <SkeletonCard key={item} style={styles.skeletonCard}>
+      <Skeleton height={15} width="55%" />
+      {[0, 1, 2].map(line => <View key={line} style={styles.skeletonAnswer}>
+        <Skeleton height={13} width="90%" />
+        <Skeleton height={13} width={40} />
+      </View>)}
+    </SkeletonCard>)}
+  </SkeletonGroup>;
+}
 
 function AnswerGroup({ title, answers }: { title: string; answers: HistoryAnswer[] }) {
   if (!answers?.length) return null;
@@ -78,7 +116,7 @@ export function HistoryScreen({ patient, onBack, initialCallId }: { patient: Pat
   return <SafeAreaView style={styles.safeArea}>
     <AppHeader title={selected ? 'Detalhes do atendimento' : 'Histórico de atendimentos'} onBack={selected ? () => setSelected(null) : onBack} />
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {selected ? <>
+      {detailLoading && !selected ? <HistoryDetailSkeleton /> : selected ? <>
         <Text style={styles.eyebrow}>ATENDIMENTO #{selected.chamadoId}</Text>
         <Text style={styles.title}>{symptomLabels[selected.sintomaPrincipal] || selected.sintomaPrincipal}</Text>
         <Text style={styles.date}>{formatDate(selected.dataCriacao)}</Text>
@@ -98,7 +136,7 @@ export function HistoryScreen({ patient, onBack, initialCallId }: { patient: Pat
         <Text style={styles.eyebrow}>SEU CUIDADO</Text>
         <Text style={styles.title}>Histórico de atendimentos</Text>
         <Text style={styles.subtitle}>Consulte as triagens e classificações registradas na sua conta.</Text>
-        {loading ? <ActivityIndicator accessibilityLabel="Carregando histórico" color={colors.primary} style={styles.loader} /> : error ? <View style={styles.emptyCard}>
+        {loading ? <HistoryListSkeleton /> : error ? <View style={styles.emptyCard}>
           <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
           <AuthButton label="Tentar novamente" onPress={() => setAttempt(value => value + 1)} />
         </View> : records.length === 0 ? <View style={styles.emptyCard}>
@@ -125,7 +163,6 @@ export function HistoryScreen({ patient, onBack, initialCallId }: { patient: Pat
           </Pressable>;
         })}
         {!!error && !loading && records.length > 0 && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        {detailLoading && <View style={styles.loadingOverlay}><ActivityIndicator color={colors.primary} /><Text style={styles.subtitle}>Carregando atendimento…</Text></View>}
       </>}
     </ScrollView>
   </SafeAreaView>;
@@ -138,7 +175,9 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21 },
   date: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-  loader: { marginTop: 40 },
+  skeletonList: { gap: 14 },
+  skeletonCard: { gap: 14 },
+  skeletonAnswer: { borderTopColor: colors.border, borderTopWidth: 1, gap: 7, paddingTop: 12 },
   emptyCard: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 22, gap: 12, marginTop: 12 },
   emptyIcon: { color: colors.primary, fontSize: 30 },
   emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
@@ -162,5 +201,4 @@ const styles = StyleSheet.create({
   yes: { color: colors.danger },
   no: { color: colors.success },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19 },
-  loadingOverlay: { alignItems: 'center', gap: 10, padding: 14 },
 });

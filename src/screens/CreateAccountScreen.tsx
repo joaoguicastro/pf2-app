@@ -9,6 +9,18 @@ import { getApiErrorMessage } from '../services/apiClient';
 import { colors } from '../theme/colors';
 import { CreatePatientRequest } from '../types/api';
 import { formatCpf } from '../utils/cpf';
+import {
+  PASSWORD_MIN_LENGTH,
+  calculateAge,
+  parseBirthDate,
+  validateBirthDate,
+  validateCpf,
+  validateEmail,
+  validateGender,
+  validateName,
+  validatePassword,
+  validatePasswordConfirmation,
+} from '../utils/validation';
 
 type CreateAccountScreenProps = {
   onBack: () => void;
@@ -24,18 +36,12 @@ function formatBirthDate(value: string): string {
     .replace(/(\d{2})(\d)/, '$1/$2');
 }
 
-function toIsoDate(value: string): string | null {
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
-  if (!match) return null;
-  const [, day, month, year] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  if (
-    date.getFullYear() !== Number(year) ||
-    date.getMonth() !== Number(month) - 1 ||
-    date.getDate() !== Number(day)
-  ) {
-    return null;
-  }
+const genderOptions = ['Feminino', 'Masculino', 'Outro'];
+
+type Field = 'fullName' | 'birthDate' | 'gender' | 'cpf' | 'email' | 'password' | 'confirmPassword';
+
+function toIsoDate(value: string): string {
+  const [day, month, year] = value.split('/');
   return `${year}-${month}-${day}`;
 }
 
@@ -50,22 +56,39 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [touched, setTouched] = useState<Partial<Record<Field, boolean>>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const canSubmit =
-    acceptedTerms &&
-    fullName.trim().length > 0 &&
-    birthDate.trim().length === 10 &&
-    gender.trim().length > 0 &&
-    cpf.length === 14 &&
-    email.trim().length > 0 &&
-    password.length >= 8 &&
-    password === confirmPassword;
+  const fieldErrors: Record<Field, string | null> = {
+    birthDate: validateBirthDate(birthDate),
+    confirmPassword: validatePasswordConfirmation(password, confirmPassword),
+    cpf: validateCpf(cpf),
+    email: validateEmail(email),
+    fullName: validateName(fullName),
+    gender: validateGender(gender),
+    password: validatePassword(password),
+  };
+  const hasFieldErrors = Object.values(fieldErrors).some(Boolean);
+  const birth = parseBirthDate(birthDate);
+  const ageHelper = birth && !fieldErrors.birthDate ? `${calculateAge(birth)} anos` : undefined;
+
+  function visibleError(field: Field) {
+    return submitAttempted || touched[field] ? fieldErrors[field] : null;
+  }
+
+  function markTouched(field: Field) {
+    setTouched((current) => ({ ...current, [field]: true }));
+  }
 
   async function handleCreateAccount() {
-    if (!canSubmit || isSubmitting) return;
-    const dataNascimento = toIsoDate(birthDate);
-    if (!dataNascimento) {
-      setError('Informe uma data de nascimento válida no formato DD/MM/AAAA.');
+    if (isSubmitting) return;
+    setSubmitAttempted(true);
+    if (hasFieldErrors) {
+      setError('Corrija os campos destacados para continuar.');
+      return;
+    }
+    if (!acceptedTerms) {
+      setError('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
       return;
     }
 
@@ -74,11 +97,11 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
     try {
       await onCreateAccount({
         cpf,
-        dataNascimento,
+        dataNascimento: toIsoDate(birthDate),
         email: email.trim(),
-        nome: fullName.trim(),
+        nome: fullName.trim().replace(/\s+/g, ' '),
         senha: password,
-        sexo: gender.trim(),
+        sexo: gender,
       });
     } catch (requestError) {
       setError(getApiErrorMessage(requestError));
@@ -97,27 +120,59 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
           Crie seu cadastro para enviar as respostas da triagem e receber a orientação inicial.
         </Text>
 
-        <AuthTextInput label="Nome completo" onChangeText={setFullName} value={fullName} />
+        <AuthTextInput
+          autoCapitalize="words"
+          autoComplete="name"
+          error={visibleError('fullName')}
+          label="Nome completo"
+          maxLength={100}
+          onBlur={() => markTouched('fullName')}
+          onChangeText={setFullName}
+          value={fullName}
+        />
 
-        <View style={styles.row}>
-          <View style={styles.rowItem}>
-            <AuthTextInput
-              keyboardType="number-pad"
-              label="Nascimento"
-              maxLength={10}
-              onChangeText={(value) => setBirthDate(formatBirthDate(value))}
-              placeholder="DD/MM/AAAA"
-              value={birthDate}
-            />
+        <AuthTextInput
+          error={visibleError('birthDate')}
+          helperText={ageHelper}
+          keyboardType="number-pad"
+          label="Data de nascimento"
+          maxLength={10}
+          onBlur={() => markTouched('birthDate')}
+          onChangeText={(value) => setBirthDate(formatBirthDate(value))}
+          placeholder="DD/MM/AAAA"
+          value={birthDate}
+        />
+
+        <View style={styles.genderGroup}>
+          <Text style={styles.label}>Sexo</Text>
+          <View accessibilityRole="radiogroup" style={styles.row}>
+            {genderOptions.map((option) => (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: gender === option }}
+                key={option}
+                onPress={() => { setGender(option); markTouched('gender'); }}
+                style={[
+                  styles.genderOption,
+                  gender === option && styles.genderOptionSelected,
+                  !!visibleError('gender') && styles.genderOptionError,
+                ]}
+              >
+                <Text style={[styles.genderText, gender === option && styles.genderTextSelected]}>{option}</Text>
+              </Pressable>
+            ))}
           </View>
-          <View style={styles.rowItem}>
-            <AuthTextInput label="Sexo" onChangeText={setGender} value={gender} />
-          </View>
+          {visibleError('gender') ? (
+            <Text accessibilityRole="alert" style={styles.fieldError}>{visibleError('gender')}</Text>
+          ) : null}
         </View>
 
         <AuthTextInput
+          error={visibleError('cpf')}
           keyboardType="number-pad"
           label="CPF"
+          maxLength={14}
+          onBlur={() => markTouched('cpf')}
           onChangeText={(value) => setCpf(formatCpf(value))}
           placeholder="000.000.000-00"
           value={cpf}
@@ -125,22 +180,34 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
 
         <AuthTextInput
           autoCapitalize="none"
+          autoComplete="email"
+          autoCorrect={false}
+          error={visibleError('email')}
           keyboardType="email-address"
           label="E-mail"
+          onBlur={() => markTouched('email')}
           onChangeText={setEmail}
+          placeholder="voce@exemplo.com"
           value={email}
         />
 
         <AuthTextInput
-          helperText="Mínimo de 8 caracteres."
+          autoCapitalize="none"
+          autoComplete="new-password"
+          error={visibleError('password')}
+          helperText={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres.`}
           label="Senha"
+          onBlur={() => markTouched('password')}
           onChangeText={setPassword}
           secureTextEntry
           value={password}
         />
 
         <AuthTextInput
+          autoCapitalize="none"
+          error={visibleError('confirmPassword')}
           label="Confirmar senha"
+          onBlur={() => markTouched('confirmPassword')}
           onChangeText={setConfirmPassword}
           secureTextEntry
           value={confirmPassword}
@@ -166,7 +233,7 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
 
         <View style={styles.footer}>
           <AuthButton
-            disabled={!canSubmit || isSubmitting}
+            disabled={isSubmitting}
             label={isSubmitting ? 'Criando conta...' : 'Criar conta'}
             onPress={handleCreateAccount}
           />
@@ -223,16 +290,53 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     padding: 12,
   },
+  fieldError: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+  },
   footer: {
     gap: 16,
     marginTop: 18,
   },
+  genderGroup: {
+    marginBottom: 16,
+  },
+  genderOption: {
+    alignItems: 'center',
+    backgroundColor: colors.inputBackground,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 42,
+  },
+  genderOptionError: {
+    borderColor: colors.danger,
+  },
+  genderOptionSelected: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  genderText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  genderTextSelected: {
+    color: colors.primaryDark,
+  },
+  label: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 7,
+  },
   row: {
     flexDirection: 'row',
     gap: 12,
-  },
-  rowItem: {
-    flex: 1,
   },
   safeArea: {
     backgroundColor: colors.background,

@@ -3,6 +3,7 @@ import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'rea
 
 import { ApiStateView } from '../components/ApiStateView';
 import { AppHeader } from '../components/AppHeader';
+import { Skeleton, SkeletonGroup } from '../components/Skeleton';
 import { getApiErrorMessage } from '../services/apiClient';
 import { listSymptoms } from '../services/medMaisFacilApi';
 import { colors } from '../theme/colors';
@@ -34,11 +35,36 @@ export function SymptomSelectionScreen({ onBack, onSelect }: SymptomSelectionScr
     loadSymptoms();
   }, [loadSymptoms]);
 
-  if (loading || error) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <AppHeader onBack={onBack} title="Sintoma principal" />
-        <ApiStateView error={error} loading={loading} onRetry={loadSymptoms} />
+        <SkeletonGroup accessibilityLabel="Carregando sintomas" style={styles.content}>
+          <Skeleton height={11} width={90} />
+          <Skeleton height={26} style={styles.skeletonTitle} width="85%" />
+          <Skeleton height={14} style={styles.skeletonLine} />
+          <Skeleton height={14} style={styles.skeletonLine} width="70%" />
+          <View style={styles.list}>
+            {[0, 1, 2, 3, 4].map((item) => (
+              <View key={item} style={styles.option}>
+                <Skeleton height={48} radius={7} width={54} />
+                <View style={styles.optionCopy}>
+                  <Skeleton height={15} width="55%" />
+                  <Skeleton height={12} style={styles.skeletonLine} width="85%" />
+                </View>
+              </View>
+            ))}
+          </View>
+        </SkeletonGroup>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <AppHeader onBack={onBack} title="Sintoma principal" />
+        <ApiStateView error={error} onRetry={loadSymptoms} />
       </SafeAreaView>
     );
   }
@@ -98,6 +124,8 @@ const styles = StyleSheet.create({
   optionPressed: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   optionTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
   safeArea: { backgroundColor: colors.background, flex: 1 },
+  skeletonLine: { marginTop: 8 },
+  skeletonTitle: { marginTop: 10 },
   step: { color: colors.primaryDark, fontSize: 11, fontWeight: '900' },
   symbolBox: {
     alignItems: 'center',

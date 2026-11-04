@@ -6,6 +6,7 @@ import { ApiStateView } from '../components/ApiStateView';
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
 import { ProgressBar } from '../components/ProgressBar';
+import { Skeleton, SkeletonGroup } from '../components/Skeleton';
 import { getApiErrorMessage } from '../services/apiClient';
 import { getQuestionnaire } from '../services/medMaisFacilApi';
 import { colors } from '../theme/colors';
@@ -103,11 +104,36 @@ export function QuestionnaireScreen({
     setCurrentIndex((index) => index + 1);
   }
 
-  if (loading || loadError || !currentQuestion) {
+  if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <AppHeader onBack={onBack} title="Questionário" />
-        <ApiStateView error={loadError} loading={loading} onRetry={loadQuestionnaire} />
+        <SkeletonGroup accessibilityLabel="Carregando questionário" style={styles.content}>
+          <Skeleton height={12} width={110} />
+          <Skeleton height={7} radius={4} style={styles.skeletonGap} />
+          <Skeleton height={22} radius={12} style={styles.stageBadgeSkeleton} width={150} />
+          <View style={styles.questionArea}>
+            <Skeleton height={24} />
+            <Skeleton height={24} style={styles.skeletonGap} width="80%" />
+            <Skeleton height={13} style={styles.hintSkeleton} width="60%" />
+            <View style={styles.options}>
+              <Skeleton height={58} radius={8} />
+              <Skeleton height={58} radius={8} />
+            </View>
+          </View>
+          <View style={styles.footer}>
+            <Skeleton height={48} radius={10} />
+          </View>
+        </SkeletonGroup>
+      </SafeAreaView>
+    );
+  }
+
+  if (loadError || !currentQuestion) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <AppHeader onBack={onBack} title="Questionário" />
+        <ApiStateView error={loadError} onRetry={loadQuestionnaire} />
       </SafeAreaView>
     );
   }
@@ -180,6 +206,9 @@ const styles = StyleSheet.create({
   question: { color: colors.text, fontSize: 24, fontWeight: '900', lineHeight: 33 },
   questionArea: { marginTop: 26 },
   safeArea: { backgroundColor: colors.background, flex: 1 },
+  hintSkeleton: { marginTop: 12 },
+  skeletonGap: { marginTop: 8 },
+  stageBadgeSkeleton: { marginTop: 22 },
   stageBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.primaryLight,
