@@ -8,6 +8,7 @@ import { AuthButton } from '../components/AuthButton';
 import { ConflictModal } from '../components/ConflictModal';
 import { ProgressBar } from '../components/ProgressBar';
 import { Skeleton, SkeletonGroup } from '../components/Skeleton';
+import { useSnackbar } from '../components/Snackbar';
 import { getApiErrorMessage } from '../services/apiClient';
 import { getQuestionnaire } from '../services/medMaisFacilApi';
 import { colors } from '../theme/colors';
@@ -35,9 +36,9 @@ export function QuestionnaireScreen({
   const [answers, setAnswers] = useState<TriageAnswers>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const { showError } = useSnackbar();
 
   const loadQuestionnaire = useCallback(async () => {
     setLoadError(null);
@@ -96,7 +97,6 @@ export function QuestionnaireScreen({
     else respostasFluxograma[key] = answer;
   });
 
-  setSubmitError(null);
   setIsSubmitting(true);
   try {
     await onComplete(
@@ -109,7 +109,7 @@ export function QuestionnaireScreen({
       setConflictMessage(getApiErrorMessage(requestError));
     } else {
       setConflictMessage(null);
-      setSubmitError(getApiErrorMessage(requestError));
+      showError(getApiErrorMessage(requestError));
     }
   } finally {
     setIsSubmitting(false);
@@ -178,25 +178,18 @@ export function QuestionnaireScreen({
           <View accessibilityRole="radiogroup" style={styles.options}>
             <AnswerOption
               label="Sim"
-              onPress={() => {
-                setSubmitError(null);
-                setAnswers((current) => ({ ...current, [currentQuestion.key]: true }));
-              }}
+              onPress={() => setAnswers((current) => ({ ...current, [currentQuestion.key]: true }))}
               selected={currentAnswer === true}
             />
             <AnswerOption
               label="Não"
-              onPress={() => {
-                setSubmitError(null);
-                setAnswers((current) => ({ ...current, [currentQuestion.key]: false }));
-              }}
+              onPress={() => setAnswers((current) => ({ ...current, [currentQuestion.key]: false }))}
               selected={currentAnswer === false && hasAnswer}
             />
           </View>
         </View>
 
         <View style={styles.footer}>
-          {submitError ? <Text style={styles.error}>{submitError}</Text> : null}
           <AuthButton
             disabled={!hasAnswer || isSubmitting}
             label={isSubmitting ? 'Enviando triagem...' : isLastQuestion ? 'Ver resultado' : 'Continuar'}
@@ -220,15 +213,6 @@ export function QuestionnaireScreen({
 const styles = StyleSheet.create({
   content: { flex: 1, paddingBottom: 24, paddingHorizontal: 24, paddingTop: 20 },
   disclaimer: { color: colors.muted, fontSize: 11, marginTop: 12, textAlign: 'center' },
-  error: {
-    backgroundColor: colors.dangerLight,
-    borderRadius: 8,
-    color: colors.danger,
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 12,
-    padding: 12,
-  },
   footer: { marginTop: 'auto', paddingTop: 22 },
   hint: { color: colors.muted, fontSize: 13, marginTop: 12 },
   options: { gap: 12, marginTop: 26 },

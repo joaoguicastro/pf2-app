@@ -5,6 +5,7 @@ import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
 import { AuthLink } from '../components/AuthLink';
 import { AuthTextInput } from '../components/AuthTextInput';
+import { useSnackbar } from '../components/Snackbar';
 import { getApiErrorMessage } from '../services/apiClient';
 import { colors } from '../theme/colors';
 import { CreatePatientRequest } from '../types/api';
@@ -54,8 +55,8 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showError } = useSnackbar();
   const [touched, setTouched] = useState<Partial<Record<Field, boolean>>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -84,15 +85,14 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
     if (isSubmitting) return;
     setSubmitAttempted(true);
     if (hasFieldErrors) {
-      setError('Corrija os campos destacados para continuar.');
+      showError('Corrija os campos destacados para continuar.');
       return;
     }
     if (!acceptedTerms) {
-      setError('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
+      showError('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
       return;
     }
 
-    setError(null);
     setIsSubmitting(true);
     try {
       await onCreateAccount({
@@ -104,7 +104,7 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
         sexo: gender,
       });
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
+      showError(getApiErrorMessage(requestError));
     } finally {
       setIsSubmitting(false);
     }
@@ -213,8 +213,6 @@ export function CreateAccountScreen({ onBack, onCreateAccount, onLogin }: Create
           value={confirmPassword}
         />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
         <Pressable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: acceptedTerms }}
@@ -280,15 +278,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 18,
-  },
-  error: {
-    backgroundColor: colors.dangerLight,
-    borderRadius: 8,
-    color: colors.danger,
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 8,
-    padding: 12,
   },
   fieldError: {
     color: colors.danger,

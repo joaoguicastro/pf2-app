@@ -32,6 +32,7 @@ import {
   TriageSubmission,
 } from "./src/types/triage";
 import { Coordinates, getCurrentCoordinates } from "./src/services/location";
+import { SnackbarProvider, useSnackbar } from "./src/components/Snackbar";
 
 export type ScreenName =
   | "create-account"
@@ -46,6 +47,15 @@ export type ScreenName =
   | "check-in";
 
 export default function App() {
+  return (
+    <SnackbarProvider>
+      <AppContent />
+    </SnackbarProvider>
+  );
+}
+
+function AppContent() {
+  const { showSuccess } = useSnackbar();
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
   const [screen, setScreen] = useState<ScreenName>("login");
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -103,6 +113,7 @@ export default function App() {
     await saveAuthToken(session.token);
     setPatient(session.patient);
     setScreen("home");
+    showSuccess("Login realizado com sucesso.");
   }
 
   async function handleCreateAccount(payload: CreatePatientRequest) {
@@ -114,6 +125,7 @@ export default function App() {
     await saveAuthToken(session.token);
     setPatient(session.patient);
     setScreen("home");
+    showSuccess("Conta criada com sucesso.");
   }
 
   function handleLogout() {
@@ -125,6 +137,7 @@ export default function App() {
     setTriageResult(null);
     setCoordinates(undefined);
     setScreen("login");
+    showSuccess("Você saiu da sua conta.");
   }
 
   async function finishQuestionnaire(
@@ -148,6 +161,7 @@ export default function App() {
     setTriageResult(result);
     setLastTriage({ result, symptom: selectedSymptom });
     setScreen("triage-result");
+    showSuccess("Triagem enviada com sucesso.");
   }
 
   async function handleHospitalSelection(hospital: Hospital) {
@@ -160,6 +174,7 @@ export default function App() {
     );
     setCheckIn(result);
     setScreen("check-in");
+    showSuccess(`Check-in gerado para ${result.hospital.nome}.`);
   }
 
   return (

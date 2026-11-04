@@ -4,6 +4,7 @@ import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { AuthButton } from '../components/AuthButton';
 import { AuthLink } from '../components/AuthLink';
 import { AuthTextInput } from '../components/AuthTextInput';
+import { useSnackbar } from '../components/Snackbar';
 import { getApiErrorMessage } from '../services/apiClient';
 import { colors } from '../theme/colors';
 import { LoginRequest } from '../types/api';
@@ -17,8 +18,8 @@ type LoginScreenProps = {
 export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { showError } = useSnackbar();
 
   const [touched, setTouched] = useState({ email: false, password: false });
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -30,12 +31,11 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
     if (isSubmitting) return;
     setSubmitAttempted(true);
     if (emailError || passwordError) return;
-    setError(null);
     setIsSubmitting(true);
     try {
       await onLogin({ email: email.trim(), senha: password });
     } catch (requestError) {
-      setError(getApiErrorMessage(requestError));
+      showError(getApiErrorMessage(requestError));
     } finally {
       setIsSubmitting(false);
     }
@@ -61,7 +61,7 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
             editable={!isSubmitting}
             error={submitAttempted || touched.email ? emailError : null}
             onBlur={() => setTouched((current) => ({ ...current, email: true }))}
-            onChangeText={(value) => { setEmail(value); setError(null); }}
+            onChangeText={setEmail}
             value={email}
           />
           <AuthTextInput
@@ -72,11 +72,9 @@ export function LoginScreen({ onCreateAccount, onLogin }: LoginScreenProps) {
             editable={!isSubmitting}
             error={submitAttempted || touched.password ? passwordError : null}
             onBlur={() => setTouched((current) => ({ ...current, password: true }))}
-            onChangeText={(value) => { setPassword(value); setError(null); }}
+            onChangeText={setPassword}
             value={password}
           />
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
 
         </View>
 
@@ -109,15 +107,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: 16,
-  },
-  error: {
-    backgroundColor: colors.dangerLight,
-    borderRadius: 8,
-    color: colors.danger,
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 8,
-    padding: 12,
   },
   brand: {
     color: colors.primaryDark,

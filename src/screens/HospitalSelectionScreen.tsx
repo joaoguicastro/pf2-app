@@ -4,6 +4,7 @@ import { Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Tex
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
 import { Skeleton, SkeletonCard, SkeletonGroup } from '../components/Skeleton';
+import { useSnackbar } from '../components/Snackbar';
 import { getApiErrorMessage } from '../services/apiClient';
 import { Coordinates } from '../services/location';
 import { listHospitals } from '../services/medMaisFacilApi';
@@ -79,6 +80,7 @@ export function HospitalSelectionScreen({ symptomId, initialCoordinates, nearest
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { showError } = useSnackbar();
   const [located, setLocated] = useState(!!initialCoordinates);
   const [nearestHint, setNearestHint] = useState<NearestUnitApi | null>(nearest ?? null);
   const [locationMessage, setLocationMessage] = useState(
@@ -151,9 +153,8 @@ export function HospitalSelectionScreen({ symptomId, initialCoordinates, nearest
     if (!selected || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
-    setError('');
     try { await onSelect(selected); }
-    catch (e) { if (mounted.current) setError(getApiErrorMessage(e)); }
+    catch (e) { if (mounted.current) showError(getApiErrorMessage(e)); }
     finally { savingRef.current = false; if (mounted.current) setSaving(false); }
   }
 
