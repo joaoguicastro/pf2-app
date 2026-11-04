@@ -1,3 +1,5 @@
+import { Hospital } from "./api";
+
 export type SymptomId =
   | 'DOR_TORACICA'
   | 'DISPNEIA'
@@ -45,4 +47,13 @@ export type TriageResult = {
   priority: Priority;
   status: string;
   orientation: TriageOrientation;
+  nearestHospital?: NearestUnitApi | null;
+};
+
+export type NearestUnitApi = {
+  id?: number;            // ainda não vem do backend
+  nome: string;
+  endereco: string;
+  distanciaKm: number | null;
+  lotada: boolean | null;
 };

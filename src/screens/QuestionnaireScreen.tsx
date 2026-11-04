@@ -5,6 +5,7 @@ import { AnswerOption } from '../components/AnswerOption';
 import { ApiStateView } from '../components/ApiStateView';
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
+import { ConflictModal } from '../components/ConflictModal';
 import { ProgressBar } from '../components/ProgressBar';
 import { Skeleton, SkeletonGroup } from '../components/Skeleton';
 import { getApiErrorMessage } from '../services/apiClient';
@@ -16,8 +17,12 @@ type QuestionnaireScreenProps = {
   symptomId: SymptomId;
   symptomLabel: string;
   onBack: () => void;
-  onComplete: (submission: TriageSubmission) => Promise<void>;
+  onComplete: (submission: TriageSubmission, options?: { confirmarNovoAtendimento?: boolean }) => Promise<void>;
 };
+
+function isConflictError(error: unknown) {
+  return typeof error === 'object' && error !== null && (error as { status?: number }).status === 409;
+}
 
 export function QuestionnaireScreen({
   symptomId,
@@ -32,6 +37,7 @@ export function QuestionnaireScreen({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   const loadQuestionnaire = useCallback(async () => {
     setLoadError(null);
@@ -78,27 +84,42 @@ export function QuestionnaireScreen({
     setCurrentIndex((index) => index - 1);
   }
 
+  async function submitTriage(confirmarNovoAtendimento = false) {
+  if (!questionnaire || isSubmitting) return;
+
+  const generalKeys = new Set(questionnaire.discriminadoresGerais.map((question) => question.key));
+  const discriminadoresGerais: TriageAnswers = {};
+  const respostasFluxograma: TriageAnswers = {};
+
+  Object.entries(answers).forEach(([key, answer]) => {
+    if (generalKeys.has(key)) discriminadoresGerais[key] = answer;
+    else respostasFluxograma[key] = answer;
+  });
+
+  setSubmitError(null);
+  setIsSubmitting(true);
+  try {
+    await onComplete(
+      { discriminadoresGerais, respostasFluxograma, sintomaPrincipal: symptomId },
+      { confirmarNovoAtendimento },
+    );
+    setConflictMessage(null);
+  } catch (requestError) {
+    if (isConflictError(requestError) && !confirmarNovoAtendimento) {
+      setConflictMessage(getApiErrorMessage(requestError));
+    } else {
+      setConflictMessage(null);
+      setSubmitError(getApiErrorMessage(requestError));
+    }
+  } finally {
+    setIsSubmitting(false);
+  }
+}
+
   async function handleContinue() {
     if (!hasAnswer || !questionnaire || isSubmitting) return;
     if (isLastQuestion) {
-      const generalKeys = new Set(questionnaire.discriminadoresGerais.map((question) => question.key));
-      const discriminadoresGerais: TriageAnswers = {};
-      const respostasFluxograma: TriageAnswers = {};
-
-      Object.entries(answers).forEach(([key, answer]) => {
-        if (generalKeys.has(key)) discriminadoresGerais[key] = answer;
-        else respostasFluxograma[key] = answer;
-      });
-
-      setSubmitError(null);
-      setIsSubmitting(true);
-      try {
-        await onComplete({ discriminadoresGerais, respostasFluxograma, sintomaPrincipal: symptomId });
-      } catch (requestError) {
-        setSubmitError(getApiErrorMessage(requestError));
-      } finally {
-        setIsSubmitting(false);
-      }
+      await submitTriage(false);
       return;
     }
     setCurrentIndex((index) => index + 1);
@@ -184,6 +205,14 @@ export function QuestionnaireScreen({
           <Text style={styles.disclaimer}>Suas respostas serão usadas apenas para esta triagem.</Text>
         </View>
       </View>
+
+      <ConflictModal
+        visible={conflictMessage !== null}
+        message={conflictMessage ?? ''}
+        loading={isSubmitting}
+        onConfirm={() => void submitTriage(true)}
+        onCancel={() => setConflictMessage(null)}
+      />
     </SafeAreaView>
   );
 }

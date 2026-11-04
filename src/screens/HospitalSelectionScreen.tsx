@@ -1,16 +1,25 @@
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '../components/AppHeader';
 import { AuthButton } from '../components/AuthButton';
 import { Skeleton, SkeletonCard, SkeletonGroup } from '../components/Skeleton';
 import { getApiErrorMessage } from '../services/apiClient';
+import { Coordinates } from '../services/location';
 import { listHospitals } from '../services/medMaisFacilApi';
 import { Hospital } from '../types/api';
-import { SymptomId } from '../types/triage';
+import { NearestUnitApi, SymptomId } from '../types/triage';
 import { colors } from '../theme/colors';
 
-type Props = { symptomId: SymptomId; onBack: () => void; onSelect: (hospital: Hospital) => Promise<void> };
+type Props = {
+  symptomId: SymptomId;
+  initialCoordinates?: Coordinates;
+  nearest?: NearestUnitApi | null;
+  onBack: () => void;
+  onSelect: (hospital: Hospital) => Promise<void>;
+};
+
+const OTHERS_LIMIT = 4; // 1 mais próximo + 4 demais = 5 no total
 
 function occupancyLabel(hospital: Hospital) {
   const percentage = hospital.ocupacaoPercentual;
@@ -23,21 +32,62 @@ function occupancyLabel(hospital: Hospital) {
 
 function occupancyStyle(hospital: Hospital) {
   if (hospital.ocupacaoPercentual == null) return styles.occupancyUnknown;
-  if (hospital.lotada || hospital.ocupacaoPercentual >= 100 || hospital.ocupacaoPercentual >= 70) return styles.occupancyHigh;
+  if (hospital.lotada || hospital.ocupacaoPercentual >= 70) return styles.occupancyHigh;
   if (hospital.ocupacaoPercentual >= 30) return styles.occupancyModerate;
   return styles.occupancyLow;
 }
 
-export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) {
+function formatDistance(km: number) {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1).replace('.', ',')} km`;
+}
+
+function normalize(text: string) {
+  return text.trim().toLowerCase();
+}
+
+type CardProps = { hospital: Hospital; selected: boolean; disabled: boolean; highlight?: boolean; onPress: () => void };
+
+function HospitalCard({ hospital, selected, disabled, highlight, onPress }: CardProps) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.hospital, highlight && styles.highlight, selected && styles.selected]}
+    >
+      <View style={styles.row}>
+        <Text style={styles.panelTitle}>{hospital.nome}</Text>
+        <Text style={styles.radio}>{selected ? '●' : '○'}</Text>
+      </View>
+      <Text style={styles.address}>{hospital.endereco}</Text>
+      {hospital.distanciaKm != null && <Text style={styles.distance}>{formatDistance(hospital.distanciaKm)} de você</Text>}
+      <View accessibilityLabel={occupancyLabel(hospital)} style={[styles.occupancyBadge, occupancyStyle(hospital)]}>
+        <Text style={styles.occupancyText}>{occupancyLabel(hospital)}</Text>
+        {hospital.ocupacaoAtual != null && hospital.limiteLotacao != null && hospital.limiteLotacao > 0 && (
+          <Text style={styles.occupancyDetail}>{hospital.ocupacaoAtual} na fila · limite {hospital.limiteLotacao}</Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+export function HospitalSelectionScreen({ symptomId, initialCoordinates, nearest, onBack, onSelect }: Props) {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [selected, setSelected] = useState<Hospital | null>(null);
   const [loading, setLoading] = useState(true);
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [locationMessage, setLocationMessage] = useState('Permita o acesso à localização para ordenar os hospitais mais próximos.');
+  const [located, setLocated] = useState(!!initialCoordinates);
+  const [nearestHint, setNearestHint] = useState<NearestUnitApi | null>(nearest ?? null);
+  const [locationMessage, setLocationMessage] = useState(
+    initialCoordinates
+      ? 'Hospitais ordenados por proximidade. Distância aproximada em linha reta.'
+      : 'Permita o acesso à localização para ver os hospitais mais próximos.',
+  );
   const [blocked, setBlocked] = useState(false);
-  const coordinates = useRef<{ latitude: number; longitude: number } | undefined>(undefined);
+  const coordinates = useRef<Coordinates | undefined>(initialCoordinates);
   const request = useRef(0);
   const mounted = useRef(true);
   const savingRef = useRef(false);
@@ -86,6 +136,8 @@ export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) 
       ]).finally(() => clearTimeout(timer));
       if (!mounted.current) return;
       coordinates.current = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setNearestHint(null); // posição nova: o "mais próximo" é recalculado pela lista
+      setLocated(true);
       setLocationMessage('Hospitais ordenados por proximidade. Distância aproximada em linha reta.');
       await load();
     } catch {
@@ -105,44 +157,83 @@ export function HospitalSelectionScreen({ symptomId, onBack, onSelect }: Props) 
     finally { savingRef.current = false; if (mounted.current) setSaving(false); }
   }
 
+  const { nearestHospital, others } = useMemo(() => {
+    if (!located) return { nearestHospital: null as Hospital | null, others: hospitals };
+    const sorted = [...hospitals].sort((a, b) => (a.distanciaKm ?? Infinity) - (b.distanciaKm ?? Infinity));
+    const fromBackend = nearestHint
+      ? sorted.find(h => (nearestHint.id != null && h.id === nearestHint.id) || normalize(h.nome) === normalize(nearestHint.nome))
+      : undefined;
+    const near = fromBackend ?? sorted[0] ?? null;
+    return {
+      nearestHospital: near,
+      others: sorted.filter(h => h.id !== near?.id).slice(0, OTHERS_LIMIT),
+    };
+  }, [hospitals, located, nearestHint]);
+
+  const busy = saving || locating;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <AppHeader title="Encaminhamento" onBack={() => { if (!saving) onBack(); }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.eyebrow}>PRÓXIMO PASSO · ESCOLHA DO HOSPITAL</Text>
         <Text style={styles.title}>Onde você deseja ser atendido?</Text>
-        <Text style={styles.subtitle}>Selecione uma unidade que atende o sintoma informado para gerar seu QR Code de check-in.</Text>
+        <Text style={styles.subtitle}>Selecione uma unidade que atende o sintoma informado.</Text>
+
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Hospitais perto de você</Text>
           <Text style={styles.subtitle}>{locationMessage}</Text>
           <Text style={styles.occupancyHint}>A lotação considera a fila atual e a capacidade informada pela unidade.</Text>
-          <AuthButton disabled={locating || saving || loading} label={locating ? 'Obtendo localização…' : 'Usar minha localização'} onPress={() => void locate()} />
-          {blocked && Platform.OS !== 'web' && <Pressable accessibilityRole="button" onPress={() => { void Linking.openSettings().catch(() => setLocationMessage('Abra as configurações do aparelho para permitir a localização.')); }}><Text style={styles.link}>Abrir configurações</Text></Pressable>}
+          <AuthButton
+            disabled={busy || loading}
+            label={locating ? 'Obtendo localização…' : located ? 'Atualizar minha localização' : 'Usar minha localização'}
+            onPress={() => void locate()}
+          />
+          {blocked && Platform.OS !== 'web' && (
+            <Pressable accessibilityRole="button" onPress={() => { void Linking.openSettings().catch(() => setLocationMessage('Abra as configurações do aparelho para permitir a localização.')); }}>
+              <Text style={styles.link}>Abrir configurações</Text>
+            </Pressable>
+          )}
         </View>
-        {loading ? <SkeletonGroup accessibilityLabel="Carregando hospitais" style={styles.skeletonList}>
-          {[0, 1, 2].map(item => (
-            <SkeletonCard key={item}>
-              <View style={styles.row}><Skeleton height={16} width="65%" /><Skeleton height={20} radius={10} width={20} /></View>
-              <Skeleton height={13} width="90%" />
-              <Skeleton height={13} width={90} />
-              <Skeleton height={38} radius={9} />
-            </SkeletonCard>
-          ))}
-        </SkeletonGroup> : hospitals.length === 0 && !error ? <Text style={styles.subtitle}>Nenhuma unidade disponível para este sintoma.</Text> : hospitals.map(hospital => (
-          <Pressable key={hospital.id} accessibilityRole="radio" accessibilityState={{ checked: selected?.id === hospital.id, disabled: saving || locating }} disabled={saving || locating} onPress={() => setSelected(hospital)} style={[styles.hospital, selected?.id === hospital.id && styles.selected]}>
-            <View style={styles.row}><Text style={styles.panelTitle}>{hospital.nome}</Text><Text style={styles.radio}>{selected?.id === hospital.id ? '●' : '○'}</Text></View>
-            <Text style={styles.address}>{hospital.endereco}</Text>
-            {hospital.distanciaKm != null && <Text style={styles.distance}>{hospital.distanciaKm < 1 ? `${Math.round(hospital.distanciaKm * 1000)} m` : `${hospital.distanciaKm.toFixed(1).replace('.', ',')} km`} de você</Text>}
-            <View accessibilityLabel={occupancyLabel(hospital)} style={[styles.occupancyBadge, occupancyStyle(hospital)]}>
-              <Text style={styles.occupancyText}>{occupancyLabel(hospital)}</Text>
-              {hospital.ocupacaoAtual != null && hospital.limiteLotacao != null && hospital.limiteLotacao > 0 && (
-                <Text style={styles.occupancyDetail}>{hospital.ocupacaoAtual} na fila · limite {hospital.limiteLotacao}</Text>
-              )}
-            </View>
-          </Pressable>
-        ))}
-        {!!error && <View style={styles.panel}><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable accessibilityRole="button" disabled={saving || locating} onPress={() => void load()}><Text style={styles.link}>Atualizar lista</Text></Pressable></View>}
-        <AuthButton disabled={!selected || saving || loading || locating} label={saving ? 'Gerando check-in…' : 'Confirmar hospital e gerar QR Code'} onPress={() => void confirm()} />
+
+        {loading ? (
+          <SkeletonGroup accessibilityLabel="Carregando hospitais" style={styles.skeletonList}>
+            {[0, 1, 2].map(item => (
+              <SkeletonCard key={item}>
+                <View style={styles.row}><Skeleton height={16} width="65%" /><Skeleton height={20} radius={10} width={20} /></View>
+                <Skeleton height={13} width="90%" />
+                <Skeleton height={13} width={90} />
+                <Skeleton height={38} radius={9} />
+              </SkeletonCard>
+            ))}
+          </SkeletonGroup>
+        ) : !nearestHospital && others.length === 0 && !error ? (
+          <Text style={styles.subtitle}>Nenhuma unidade disponível para este sintoma.</Text>
+        ) : (
+          <>
+            {nearestHospital && (
+              <>
+                <Text style={styles.sectionLabel}>HOSPITAL MAIS PRÓXIMO</Text>
+                <HospitalCard highlight disabled={busy} hospital={nearestHospital} selected={selected?.id === nearestHospital.id} onPress={() => setSelected(nearestHospital)} />
+              </>
+            )}
+            {others.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>{nearestHospital ? 'DEMAIS HOSPITAIS' : 'HOSPITAIS DISPONÍVEIS'}</Text>
+                {others.map(hospital => (
+                  <HospitalCard key={hospital.id} disabled={busy} hospital={hospital} selected={selected?.id === hospital.id} onPress={() => setSelected(hospital)} />
+                ))}
+              </>
+            )}
+          </>
+        )}
+
+        {!!error && (
+          <View style={styles.panel}>
+            <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
+            <Pressable accessibilityRole="button" disabled={busy} onPress={() => void load()}><Text style={styles.link}>Atualizar lista</Text></Pressable>
+          </View>
+        )}
+        <AuthButton disabled={!selected || busy || loading} label={saving ? 'Confirmando…' : 'Confirmar hospital'} onPress={() => void confirm()} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -154,9 +245,11 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.primaryDark, fontSize: 11, fontWeight: '800' },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  sectionLabel: { color: colors.primaryDark, fontSize: 11, fontWeight: '900', marginTop: 4 },
   panel: { backgroundColor: colors.surface, padding: 16, borderRadius: 12, gap: 12 },
   panelTitle: { color: colors.text, fontSize: 16, fontWeight: '800', flexShrink: 1 },
   hospital: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, gap: 8 },
+  highlight: { borderColor: colors.primaryDark },
   selected: { borderColor: colors.primary, borderWidth: 2 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   radio: { color: colors.primary, fontSize: 24 },
